@@ -802,7 +802,109 @@ function toggleSidebar() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-/* ===== 本地对练引擎：完全本地运行，不调用任何 API / 网络 ===== */
+/* ===== 对练引擎：AI 对练（智谱 glm-4.7-flash，需填 Key）+ 本地练习（无 Key 自动降级） ===== */
+
+/* —— 智谱 API 配置与 Key 管理 —— */
+const ZHIPU_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+const ZHIPU_MODEL = 'glm-4.7-flash';
+const LS_KEY = 'vipthink_cc_preclass_zhipukey';
+function getApiKey(){ try { return localStorage.getItem(LS_KEY) || ''; } catch(e){ return ''; } }
+function setApiKey(k){ try { k ? localStorage.setItem(LS_KEY, (k||'').trim()) : localStorage.removeItem(LS_KEY); } catch(e){} }
+function isAIMode(){ return getApiKey().length > 10; }
+
+/* —— 家长角色设定（AI 模式用，繁体中文口语化） —— */
+const NODE_SYSTEM = {
+  opening: '你是一位中国台湾海外学员的家长，讲繁体中文、口语自然，对陌生来电略带戒心。你正在接听课程顾问(CC)的课前首通电话。\n规则：\n1. 用繁体中文、简短口语回应（1-2句）。\n2. 不主动推进流程，等 CC 引导。\n3. CC 完成自我介绍、说明来意、取得提问授权后，你再自然配合。\n4. 若 CC 话术生硬或越界，可轻微防备或简短回应。\n5. 保持真实家长口吻，不要像客服。',
+  digging: '你是一位中国台湾海外学员家长，讲繁体中文、口语自然。CC 正在向你了解孩子基本情况。\n规则：\n1. 用繁体中文、简短口语（1-2句）回应 CC 的提问。\n2. 只回答 CC 问到的，CC 没问的不主动说。\n3. 孩子信息：暖暖，女，6岁10个月，一年级，性格外向，有上美术课，数感一般（50以内加减还不会），希望她对数学有兴趣、上国小跟得上。\n4. 等 CC 问到才透露对应信息。',
+  objection: '你是一位中国台湾海外学员家长，讲繁体中文。CC 打电话来你想拒绝。\n规则：\n1. 用繁体中文、简短口语回应。\n2. 起初带拒绝或敷衍态度，若 CC 用「理解到价值再到引导」化解，你逐步软化。\n3. 不主动约时间，等 CC 引导到具体时段你才答应。',
+  confirm: '你是一位中国台湾海外学员家长，讲繁体中文，已认可试听。\n规则：\n1. 简短口语回应 CC 的确认事项（时段、设备、加 Line、预防针、结束语）。\n2. 配合确认，但不主动给过多信息。',
+  reject: '你是一位中国台湾海外学员家长，讲繁体中文。开场阶段你直接拒绝（已报其他班或没时间）。\n规则：\n1. 起初明确拒绝，若 CC 用「理解到价值再到引导」化解，你逐步软化并答应试听。\n2. 简短口语，等 CC 引导到具体时段才答应。',
+  final: '你是一位中国台湾海外学员家长，讲繁体中文。CC 对你孩子（暖暖）一无所知，通过提问从你这获取信息。\n规则：\n1. 只在 CC 问到时才透露对应信息，不主动全说。\n2. 信息：暖暖，女，6岁10个月，一年级，外向，有上美术课，数感一般（50内加减不会），希望对数学有兴趣、上国小跟得上，试听约 S4-魔法水源 3人小班。\n3. 简短口语（1-2句）。'
+};
+
+/* —— 调用智谱（Authorization 不带 Bearer） —— */
+async function callZhipu(messages){
+  const key = getApiKey();
+  if(!key) throw new Error('未填写 API Key');
+  const resp = await fetch(ZHIPU_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization': key },
+    body: JSON.stringify({ model: ZHIPU_MODEL, messages: messages, max_tokens: 800, temperature: 0.85 })
+  });
+  if(!resp.ok){ const t = await resp.text(); throw new Error('API '+resp.status+': '+t.slice(0,160)); }
+  const data = await resp.json();
+  return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+}
+
+/* —— 解析 LLM 评分 JSON {score, covered[], feedback} —— */
+function parseScoreJSON(text, dims){
+  try{
+    const m = (text||'').match(/\{[\s\S]*\}/);
+    if(m){
+      const o = JSON.parse(m[0]);
+      let score = Math.max(0, Math.min(100, parseInt(o.score,10)||0));
+      const covered = Array.isArray(o.covered) ? o.covered : [];
+      const feedback = o.feedback || '';
+      return { score: score, covered: covered, feedback: feedback };
+    }
+  }catch(e){}
+  return null;
+}
+
+/* —— 正在输入指示器 —— */
+function setTyping(nodeKey, on){
+  const dm = document.getElementById('dm-'+nodeKey);
+  if(!dm) return;
+  let el = document.getElementById('typing-'+nodeKey);
+  if(on){
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'typing-'+nodeKey;
+      el.style.cssText = 'background:#f1f5f9;border:1px solid #e2e8f0;border-radius:16px 16px 16px 4px;padding:10px 14px;margin:8px 0;font-size:13px;color:#64748b;';
+      el.textContent = '家长输入中…';
+      dm.appendChild(el);
+      dm.scrollTop = dm.scrollHeight;
+    }
+  } else if(el){ el.remove(); }
+}
+
+/* —— API 设置面板（悬浮按钮 + modal） —— */
+(function injectSettings(){
+  if(document.getElementById('apiSettingsBtn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'apiSettingsBtn';
+  btn.textContent = '⚙ AI 设置';
+  btn.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:999;background:#4f46e5;color:#fff;border:none;border-radius:24px;padding:10px 16px;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);';
+  btn.onclick = function(){ window.openSettings(); };
+  document.body.appendChild(btn);
+  const modal = document.createElement('div');
+  modal.id = 'apiSettingsModal';
+  modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;';
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
+    + '<h3 style="margin:0 0 8px;font-size:17px;">🤖 AI 对练设置</h3>'
+    + '<p style="font-size:13px;color:#475569;line-height:1.7;margin:0 0 12px;">填写你的智谱开放平台 API Key（模型 glm-4.7-flash）。填写后话术对练转为 <strong>AI 智能对练</strong>（真人对练 + AI 评分）；未填写时自动使用 <strong>本地练习模式</strong>。Key 仅保存在你本机浏览器，不会上传。</p>'
+    + '<input id="apiKeyInput" type="password" placeholder="粘贴智谱 API Key" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box;" />'
+    + '<p id="apiKeyStatus" style="font-size:12px;margin:8px 0 0;color:#64748b;"></p>'
+    + '<div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">'
+    + '<button onclick="closeSettings()" style="padding:8px 14px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;cursor:pointer;">关闭</button>'
+    + '<button onclick="saveApiKey()" style="padding:8px 14px;border:none;background:#4f46e5;color:#fff;border-radius:8px;cursor:pointer;">保存</button>'
+    + '<button onclick="clearApiKey()" style="padding:8px 14px;border:none;background:#ef4444;color:#fff;border-radius:8px;cursor:pointer;">清除</button>'
+    + '</div></div>';
+  document.body.appendChild(modal);
+  function refresh(){
+    const status = document.getElementById('apiKeyStatus');
+    if(isAIMode()){ status.style.color='#059669'; status.textContent='✅ 已启用 AI 对练模式'; }
+    else { status.style.color='#64748b'; status.textContent='当前：本地练习模式（未填写 Key）'; }
+  }
+  window.openSettings = function(){ modal.style.display='flex'; document.getElementById('apiKeyInput').value=getApiKey(); refresh(); };
+  window.closeSettings = function(){ modal.style.display='none'; };
+  window.saveApiKey = function(){ const v=document.getElementById('apiKeyInput').value.trim(); if(!v){ showToast('请粘贴 Key','warning'); return; } setApiKey(v); showToast('已保存，AI 对练已启用','success'); modal.style.display='none'; if(window.updateAllModeBadges) window.updateAllModeBadges(); };
+  window.clearApiKey = function(){ setApiKey(''); showToast('已清除，恢复本地练习模式','info'); modal.style.display='none'; if(window.updateAllModeBadges) window.updateAllModeBadges(); };
+  window.updateAllModeBadges = function(){
+    document.querySelectorAll('[data-mode-badge]').forEach(function(b){ b.textContent = isAIMode() ? '🤖 AI 对练模式' : '📴 本地练习模式'; });
+  };
+})();
+
 const dialogueNodes = {"opening": {"title": "开场白与提问授权", "scenario": "你作为 CC，给一位中国台湾海外学员家长拨打课前首通电话。请依次完成：自我介绍 → 说明来意 → 提问授权。下方家长台词为脚本示例，请按步骤逐轮回应。", "minTurns": 3, "script": ["喂？你好？", "哦，你好。", "可以啊，你说。", "好，那我配合你说。"], "expectedKeywords": [{"concept": "自我介绍", "terms": ["我是", "顾问", "专门", "对接", "我叫", "负责"], "weight": 18}, {"concept": "说明来意", "terms": ["试听", "预约", "安排", "了解", "孩子", "情况", "课程"], "weight": 18}, {"concept": "提问授权", "terms": ["方便", "占用", "几分钟", "打扰", "方便吗", "聊"], "weight": 18}, {"concept": "渠道来源", "terms": ["连结", "渠道", "看到", "透过", "链接", "来源"], "weight": 18}, {"concept": "亲和信任", "terms": ["您", "妈妈", "家长", "您好", "放心", "专门负责", "安全"], "weight": 18}]}, "digging": {"title": "挖需综合演练", "scenario": "家长已同意你提问。请通过对话挖掘：基本信息（姓名、年龄、年级、性格）、学习经历（兴趣班）、学习动机（期待）。下方家长按脚本逐句回答，请逐轮提问。", "minTurns": 5, "script": ["喂，老师你好？", "她叫暖暖。", "6 岁 10 个月，一年级。", "性格还蛮外向的。", "有在上美术课。", "数感一般，50 以内的加减法她还不太会。", "希望她对数学有点兴趣，上国小能跟得上。"], "expectedKeywords": [{"concept": "姓名", "terms": ["叫", "名字", "姓名", "暖暖"], "weight": 15}, {"concept": "年龄年级", "terms": ["几岁", "年龄", "年级", "一年级", "多大", "10个月"], "weight": 15}, {"concept": "性格", "terms": ["性格", "外向", "内向", "活泼"], "weight": 15}, {"concept": "学习经历", "terms": ["兴趣班", "美术", "在校", "补习", "上过", "学校"], "weight": 15}, {"concept": "数学基础", "terms": ["数感", "加减法", "数学", "计算", "基础"], "weight": 15}, {"concept": "学习动机", "terms": ["期待", "希望", "目标", "想", "动机", "痛点", "跟得上"], "weight": 15}]}, "objection": {"title": "异议处理", "scenario": "家长接到电话后表现出拒绝态度。请运用异议处理三步法（理解 → 价值 → 引导）化解拒绝。下方家长台词为脚本示例，请逐轮应对。", "minTurns": 3, "script": ["哎，你好，有什么事吗？", "嗯…你说的也有道理。", "那…也可以试试。", "好吧，明天晚上 7:20 可以。"], "expectedKeywords": [{"concept": "理解共情", "terms": ["理解", "特别能理解", "懂", "明白", "知道您", "正常", "没关系", "也是"], "weight": 30}, {"concept": "价值塑造", "terms": ["免费", "测评", "老师", "专业", "40分钟", "高效", "线上", "体验", "试听"], "weight": 30}, {"concept": "时间引导", "terms": ["时间", "方便", "几点", "明天", "晚上", "约", "安排", "7:20", "8:10"], "weight": 30}]}, "confirm": {"title": "确认时间·设备·加 Line", "scenario": "家长已认可试听价值。请完成：给出具体时段选择、确认上课设备、加 Line、打预防针、结束语。下方家长台词为脚本示例，请逐轮回应。", "minTurns": 4, "script": ["喂，老师，上次说的试听课什么时候呀？", "那 7:20 吧。", "我用平板好了。", "好，那怎么加 Line？", "好，辛苦老师了，拜拜。"], "expectedKeywords": [{"concept": "确认时段", "terms": ["7:20", "8:10", "时间", "几点", "时段", "方便", "哪个", "安排"], "weight": 18}, {"concept": "确认设备", "terms": ["平板", "笔电", "手机", "设备", "屏幕", "大屏"], "weight": 18}, {"concept": "加Line", "terms": ["line", "加", "连结", "微信", "联系", "方式"], "weight": 18}, {"concept": "打预防针", "terms": ["40分钟", "时长", "下载", "提前", "准备", "安静", "预期", "预约", "环境"], "weight": 18}, {"concept": "结束语试探", "terms": ["拜拜", "再见", "随时", "后面", "意向", "试了看", "问", "效果"], "weight": 18}]}, "reject": {"title": "面对拒绝的开场策略", "scenario": "家长在开场阶段直接拒绝（如「已报其他班」「没时间」）。请运用面对拒绝的开场策略：先理解，再给价值，最后引导具体时间。下方家长台词为脚本示例，请逐轮应对。", "minTurns": 3, "script": ["哎，你好，有什么事？", "我们家小朋友已经报其他班了。", "嗯…你说的也有点道理。", "那…也可以先试试。", "好，那明天晚上 7:20 可以。"], "expectedKeywords": [{"concept": "理解共情", "terms": ["理解", "特别能理解", "懂", "明白", "知道您", "正常", "没关系", "也是", "报其他"], "weight": 30}, {"concept": "价值塑造", "terms": ["免费", "测评", "老师", "专业", "40分钟", "高效", "线上", "体验", "试听", "思维"], "weight": 30}, {"concept": "时间引导", "terms": ["时间", "方便", "几点", "明天", "晚上", "约", "安排", "7:20", "8:10"], "weight": 30}]}};
 let nodeState = {
   opening:  { turn:0, ccTexts:[], done:false, score:0, submitted:false },
@@ -841,7 +943,20 @@ function startNode(nodeKey){
   const st = nodeState[nodeKey];
   const dm = document.getElementById('dm-'+nodeKey);
   if(dm && dm.children.length===0 && st.turn===0){
-    addBubble(nodeKey, 'parent', node.script[0]);
+    if(isAIMode()){
+      st.aiHistory = [{ role:'system', content: (NODE_SYSTEM[nodeKey]||'') + '\n\n当前场景：' + (node.scenario||'') + '\n\n请作为家长说出电话接通后的第一句话（简短，1-2句，繁体中文）。' }];
+      setTyping(nodeKey, true);
+      callZhipu(st.aiHistory).then(function(reply){
+        st.aiHistory.push({ role:'assistant', content: reply });
+        addBubble(nodeKey, 'parent', reply);
+        setTyping(nodeKey, false);
+      }).catch(function(){
+        setTyping(nodeKey, false);
+        if(node.script && node.script[0]) addBubble(nodeKey, 'parent', node.script[0]);
+      });
+    } else {
+      addBubble(nodeKey, 'parent', node.script[0]);
+    }
   }
 }
 
@@ -856,7 +971,24 @@ function sendTurn(nodeKey){
   st.ccTexts.push(text);
   addBubble(nodeKey, 'cc', text);
   ti.value = '';
-  // 逐轮即时反馈：像教练一样即时点评本轮命中/待补要点
+  if(isAIMode()){
+    if(!st.aiHistory) st.aiHistory = [{ role:'system', content: (NODE_SYSTEM[nodeKey]||'') + '\n\n当前场景：' + (node.scenario||'') }];
+    st.aiHistory.push({ role:'user', content: text });
+    setTyping(nodeKey, true);
+    callZhipu(st.aiHistory).then(function(reply){
+      st.aiHistory.push({ role:'assistant', content: reply });
+      addBubble(nodeKey, 'parent', reply);
+      setTyping(nodeKey, false);
+      st.turn++;
+      saveProgress();
+    }).catch(function(err){
+      setTyping(nodeKey, false);
+      showToast('AI 调用失败：' + (err && err.message ? err.message : '未知错误') + '，已切换本地练习', 'error');
+      offlineAdvance(nodeKey);
+    });
+    return;
+  }
+  // 无 Key 本地模式：逐轮即时反馈 + 脚本推进
   showTurnHint(nodeKey, text);
   st.turn++;
   if(st.turn < node.script.length){
@@ -866,6 +998,21 @@ function sendTurn(nodeKey){
     if(ta) ta.style.display = 'none';
     showToast('对练已结束，请点击「完成对练并评分」', 'info');
   }
+  saveProgress();
+}
+
+/* 本地模式推进（AI 失败时的兜底）：按脚本逐句展示家长回应 */
+function offlineAdvance(nodeKey){
+  const node = dialogueNodes[nodeKey];
+  const st = nodeState[nodeKey];
+  if(st.turn < (node.script||[]).length){
+    addBubble(nodeKey, 'parent', node.script[st.turn]);
+  } else {
+    const ta = document.getElementById('turn-area-'+nodeKey);
+    if(ta) ta.style.display = 'none';
+    showToast('对练已结束，请点击「完成对练并评分」', 'info');
+  }
+  st.turn++;
   saveProgress();
 }
 
@@ -922,14 +1069,16 @@ function scoreByKeywords(text, dims){
 function renderDialogueHTML(containerId, nodeKey){
   const node = dialogueNodes[nodeKey];
   const dimTags = (node.expectedKeywords||[]).map(function(d){ return '<span class="topic-tag">'+d.concept+'</span>'; }).join(' ');
+  const modeBadge = isAIMode() ? '🤖 AI 对练模式' : '📴 本地练习模式';
   return `
     <div class="dialogue-container" id="dc-${nodeKey}">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <span style="font-size:24px;">📞</span>
-        <h3 style="font-size:16px;font-weight:700;">话术对练 — ${node.title}</h3>
+        <h3 style="font-size:16px;font-weight:700;margin:0;">话术对练 — ${node.title}</h3>
+        <span data-mode-badge style="margin-left:auto;font-size:12px;padding:3px 10px;border-radius:20px;background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;">${modeBadge}</span>
       </div>
       <div class="dialogue-scenario"><strong>📋 场景：</strong>${node.scenario}</div>
-      <div style="margin:10px 0 6px;font-size:12px;color:var(--text-secondary);">评分维度（命中关键词即得分，由系统自动本地评分）：</div>
+      <div style="margin:10px 0 6px;font-size:12px;color:var(--text-secondary);">评分维度（系统自动评分）：</div>
       <div style="margin-bottom:12px;">${dimTags}</div>
       <div class="dialogue-messages" id="dm-${nodeKey}" style="min-height:120px;margin-bottom:12px;"></div>
       <div id="turn-area-${nodeKey}">
@@ -946,6 +1095,8 @@ function renderDialogueHTML(containerId, nodeKey){
     </div>`;
 }
 
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
 function renderNodeFeedback(nodeKey, result){
   const panel = document.getElementById('fp-'+nodeKey);
   if(!panel) return;
@@ -954,14 +1105,19 @@ function renderNodeFeedback(nodeKey, result){
     const hit = (result.hitConcepts||[]).indexOf(d.concept) >= 0;
     return '<span class="topic-tag '+(hit?'covered':'')+'" style="margin:3px;">'+d.concept+' '+(hit?'✓':'✗')+'</span>';
   }).join(' ');
+  const modeNote = isAIMode()
+    ? '本节点由 <strong>AI（智谱 glm-4.7-flash）智能对练与评分</strong>，已自动生成点评。'
+    : '本节点由系统<strong>本地自动评分</strong>（按关键词命中），全程在本地完成。';
+  const fb = (result.aiFeedback && result.aiFeedback.trim()) ? '<div class="highlight-box" style="margin-top:10px;background:#eff6ff;border-color:#bfdbfe;"><p><strong>💡 AI 点评：</strong>'+escapeHtml(result.aiFeedback)+'</p></div>' : '';
   panel.innerHTML = `
     <div class="score-display"><div class="score-circle '+(passed?'medium':'low')+'">${result.score}</div></div>
     <p style="text-align:center;font-weight:700;">${passed?'✅ 通过':'❌ 未通过（需≥60分）'}</p>
-    <div style="margin-top:8px;font-size:13px;color:var(--text-secondary);">维度命中情况：</div>
+    <div style="margin-top:8px;font-size:13px;color:var(--text-secondary);">维度覆盖情况：</div>
     <div style="margin:8px 0;">${dimHtml}</div>
+    ${fb}
     <div class="highlight-box '+(passed?'success':'warning')+'" style="margin-top:12px;">
-      <p>本节点为<strong>本地练习</strong>：系统按你输入中的关键词命中情况自动评分，全程在本地完成。</p>
-      <p style="margin-top:6px;">已命中维度：${(result.hitConcepts||[]).join('、')||'—'}</p>
+      <p>${modeNote}</p>
+      <p style="margin-top:6px;">已体现维度：${(result.hitConcepts||[]).join('、')||'—'}</p>
     </div>`;
   panel.classList.add('show');
 }
@@ -971,28 +1127,72 @@ function finishNode(nodeKey){
   const node = dialogueNodes[nodeKey];
   if(st.done && nodeKey!=='final') return;
   if(st.submitted && nodeKey==='final') return;
-  const minT = Math.min(node.minTurns||2, node.script.length);
+  const minT = node.minTurns||2;
   if(st.ccTexts.length < minT){
     showToast('请先完成至少 '+minT+' 轮对练再评分', 'warning'); return;
   }
   const allText = st.ccTexts.join('\n');
+
   if(nodeKey === 'final'){
+    if(isAIMode()){
+      setTyping(nodeKey, true);
+      const hist = (st.aiHistory||[]).slice();
+      hist.push({ role:'user', content: '作为资深CC培训师，请对刚才这段冷启动电话对话的「对话表现分」评分（满分100，看流程规范：开场白、提问授权、挖需顺序、确认收尾）。只输出JSON：{"score":0到100整数, "feedback":"30字内中文点评"}。' });
+      callZhipu(hist).then(function(reply){
+        const r = parseScoreJSON(reply);
+        const ds = (r && r.score>0) ? r.score : scoreByKeywords(allText, node.expectedKeywords||[]).score;
+        finishFinalCoverageAndPanel(nodeKey, node, allText, ds, false);
+      }).catch(function(){
+        finishFinalCoverageAndPanel(nodeKey, node, allText, scoreByKeywords(allText, node.expectedKeywords||[]).score, true);
+      });
+      return;
+    }
     const result = scoreByKeywords(allText, node.expectedKeywords||[]);
-    st.dialogueScore = result.score;
-    const facts = node.factKeys||[];
-    const t = allText.toLowerCase();
-    const cov = facts.map(function(f){ return (f.terms||[]).some(function(k){ return t.indexOf(k.toLowerCase())>=0; }); });
-    const hitCount = cov.filter(Boolean).length;
-    st.factCoverage = Math.round(100 * hitCount / facts.length);
-    renderFinalDialogueFeedback(nodeKey, result, facts, cov, hitCount);
-    showSummaryPanel();
-    showToast('对话评分完成，请在下方面板撰写书面总结', 'success');
+    finishFinalCoverageAndPanel(nodeKey, node, allText, result.score, false);
     return;
   }
+
+  if(isAIMode()){
+    setTyping(nodeKey, true);
+    const hist = (st.aiHistory||[]).slice();
+    const dimNames = (node.expectedKeywords||[]).map(function(d){ return d.concept; }).join('、');
+    hist.push({ role:'user', content: '作为资深CC培训师，对刚才这段电话话术对练评分。只输出JSON：{"score":0到100整数, "covered":["已体现维度名"], "feedback":"30字内中文点评"}。评分维度：' + dimNames + '。按维度体现给分，总分0-100。' });
+    callZhipu(hist).then(function(reply){
+      const r = parseScoreJSON(reply);
+      setTyping(nodeKey, false);
+      if(r && r.score>0){
+        st.score = r.score; st.done = true; st.submitted = true;
+        renderNodeFeedback(nodeKey, { score:r.score, dims:node.expectedKeywords, hitConcepts:r.covered, aiFeedback:r.feedback });
+        updateSidebarLocks(); saveProgress(); checkCertificate();
+      } else {
+        scoreOfflineNode(nodeKey);
+      }
+    }).catch(function(){ setTyping(nodeKey, false); scoreOfflineNode(nodeKey); });
+    return;
+  }
+  scoreOfflineNode(nodeKey);
+}
+
+function finishFinalCoverageAndPanel(nodeKey, node, allText, ds, fallbackMsg){
+  const st = nodeState[nodeKey];
+  st.dialogueScore = ds;
+  const facts = node.factKeys||[];
+  const t = allText.toLowerCase();
+  const cov = facts.map(function(f){ return (f.terms||[]).some(function(k){ return t.indexOf(k.toLowerCase())>=0; }); });
+  const hitCount = cov.filter(Boolean).length;
+  st.factCoverage = Math.round(100 * hitCount / facts.length);
+  renderFinalDialogueFeedback(nodeKey, {score:ds}, facts, cov, hitCount);
+  showSummaryPanel();
+  setTyping(nodeKey, false);
+  showToast(fallbackMsg ? 'AI 评分失败，已用本地评分' : '对话评分完成，请在下方面板撰写书面总结', fallbackMsg ? 'info' : 'success');
+}
+
+function scoreOfflineNode(nodeKey){
+  const st = nodeState[nodeKey];
+  const node = dialogueNodes[nodeKey];
+  const allText = st.ccTexts.join('\n');
   const result = scoreByKeywords(allText, node.expectedKeywords||[]);
-  st.score = result.score;
-  st.done = true;
-  st.submitted = true;
+  st.score = result.score; st.done = true; st.submitted = true;
   renderNodeFeedback(nodeKey, result);
   updateSidebarLocks(); saveProgress(); checkCertificate();
 }
@@ -1043,23 +1243,45 @@ function submitFinalSummary(){
   if(text.length < 30){ showToast('总结太短，请至少 30 字', 'warning'); return; }
   st.summary = text;
   const node = dialogueNodes.final;
-  const sres = scoreByKeywords(text, node.summaryKeywords||[]);
-  st.summaryScore = sres.score;
-  st.score = Math.round(st.dialogueScore*0.5 + st.factCoverage*0.2 + st.summaryScore*0.3);
-  st.submitted = true;
-  const fpanel = document.getElementById('finalSummaryFeedback');
-  const passed = st.score >= 60;
-  fpanel.innerHTML = `
-    <div class="score-display"><div class="score-circle '+(passed?'medium':'low')+'">'+st.score+'</div></div>
-    <p style="text-align:center;font-weight:700;">${passed?'✅ 终极考核通过':'❌ 未通过，建议重考'}</p>
-    <div class="eval-dimensions" style="margin-top:16px;">
-      <div class="eval-dim"><h4>对话表现（50%）</h4><p>${st.dialogueScore}分</p></div>
-      <div class="eval-dim"><h4>信息覆盖（20%）</h4><p>${st.factCoverage}分</p></div>
-      <div class="eval-dim"><h4>总结（30%）</h4><p>${st.summaryScore}分</p></div>
-    </div>`;
-  finalTaskSubmitted = true;
-  finalScore = st.score;
-  updateSidebarLocks(); saveProgress(); checkCertificate();
+
+  function commit(summaryScore, fb){
+    st.summaryScore = summaryScore;
+    st.score = Math.round(st.dialogueScore*0.5 + st.factCoverage*0.2 + st.summaryScore*0.3);
+    st.submitted = true;
+    const fpanel = document.getElementById('finalSummaryFeedback');
+    const passed = st.score >= 60;
+    const fbHtml = (fb && fb.trim()) ? '<div class="highlight-box" style="margin-top:10px;background:#eff6ff;border-color:#bfdbfe;"><p><strong>💡 AI 总结点评：</strong>'+escapeHtml(fb)+'</p></div>' : '';
+    fpanel.innerHTML = `
+      <div class="score-display"><div class="score-circle '+(passed?'medium':'low')+'">'+st.score+'</div></div>
+      <p style="text-align:center;font-weight:700;">${passed?'✅ 终极考核通过':'❌ 未通过，建议重考'}</p>
+      ${fbHtml}
+      <div class="eval-dimensions" style="margin-top:16px;">
+        <div class="eval-dim"><h4>对话表现（50%）</h4><p>${st.dialogueScore}分</p></div>
+        <div class="eval-dim"><h4>信息覆盖（20%）</h4><p>${st.factCoverage}分</p></div>
+        <div class="eval-dim"><h4>总结（30%）</h4><p>${st.summaryScore}分</p></div>
+      </div>`;
+    finalTaskSubmitted = true;
+    finalScore = st.score;
+    updateSidebarLocks(); saveProgress(); checkCertificate();
+  }
+
+  if(isAIMode()){
+    setTyping('final', true);
+    const hist = (st.aiHistory||[]).slice();
+    const dimNames = (node.summaryKeywords||[]).map(function(d){ return d.concept; }).join('、');
+    hist.push({ role:'user', content: '学员刚撰写了如下书面总结：「'+text+'」。请作为培训师对总结评分。只输出JSON：{"score":0到100整数, "feedback":"30字内中文点评"}。评分维度：' + dimNames + '。' });
+    callZhipu(hist).then(function(reply){
+      const r = parseScoreJSON(reply);
+      setTyping('final', false);
+      if(r && r.score>0){ commit(r.score, r.feedback); }
+      else { commit(scoreByKeywords(text, node.summaryKeywords||[]).score, ''); }
+    }).catch(function(){
+      setTyping('final', false);
+      commit(scoreByKeywords(text, node.summaryKeywords||[]).score, '');
+    });
+    return;
+  }
+  commit(scoreByKeywords(text, node.summaryKeywords||[]).score, '');
 }
 
 function resetNode(nodeKey){
