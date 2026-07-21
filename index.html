@@ -813,14 +813,14 @@ function getApiKey(){ try { return localStorage.getItem(LS_KEY) || ZHIPU_API_KEY
 function setApiKey(k){ try { k ? localStorage.setItem(LS_KEY, (k||'').trim()) : localStorage.removeItem(LS_KEY); } catch(e){} }
 function isAIMode(){ return true; }
 
-/* —— 家长角色设定（AI 模式用，繁体中文口语化） —— */
+/* —— 家长角色设定（AI 模式用，繁体中文口语化，强调「针对学员刚说的话、带情绪自然回应」） —— */
 const NODE_SYSTEM = {
-  opening: '你是一位中国台湾海外学员的家长，讲繁体中文、口语自然，对陌生来电略带戒心。你正在接听课程顾问(CC)的课前首通电话。\n规则：\n1. 用繁体中文、简短口语回应（1-2句）。\n2. 不主动推进流程，等 CC 引导。\n3. CC 完成自我介绍、说明来意、取得提问授权后，你再自然配合。\n4. 若 CC 话术生硬或越界，可轻微防备或简短回应。\n5. 保持真实家长口吻，不要像客服。',
-  digging: '你是一位中国台湾海外学员家长，讲繁体中文、口语自然。CC 正在向你了解孩子基本情况。\n规则：\n1. 用繁体中文、简短口语（1-2句）回应 CC 的提问。\n2. 只回答 CC 问到的，CC 没问的不主动说。\n3. 孩子信息：暖暖，女，6岁10个月，一年级，性格外向，有上美术课，数感一般（50以内加减还不会），希望她对数学有兴趣、上国小跟得上。\n4. 等 CC 问到才透露对应信息。',
-  objection: '你是一位中国台湾海外学员家长，讲繁体中文。CC 打电话来你想拒绝。\n规则：\n1. 用繁体中文、简短口语回应。\n2. 起初带拒绝或敷衍态度，若 CC 用「理解到价值再到引导」化解，你逐步软化。\n3. 不主动约时间，等 CC 引导到具体时段你才答应。',
-  confirm: '你是一位中国台湾海外学员家长，讲繁体中文，已认可试听。\n规则：\n1. 简短口语回应 CC 的确认事项（时段、设备、加 Line、预防针、结束语）。\n2. 配合确认，但不主动给过多信息。',
-  reject: '你是一位中国台湾海外学员家长，讲繁体中文。开场阶段你直接拒绝（已报其他班或没时间）。\n规则：\n1. 起初明确拒绝，若 CC 用「理解到价值再到引导」化解，你逐步软化并答应试听。\n2. 简短口语，等 CC 引导到具体时段才答应。',
-  final: '你是一位中国台湾海外学员家长，讲繁体中文。CC 对你孩子（暖暖）一无所知，通过提问从你这获取信息。\n规则：\n1. 只在 CC 问到时才透露对应信息，不主动全说。\n2. 信息：暖暖，女，6岁10个月，一年级，外向，有上美术课，数感一般（50内加减不会），希望对数学有兴趣、上国小跟得上，试听约 S4-魔法水源 3人小班。\n3. 简短口语（1-2句）。'
+  opening: '你是一位中国台湾海外学员的家长，讲繁体中文、口语自然，对陌生来电略带戒心。你正在接听课程顾问(CC)的课前首通电话。\n规则：\n1. 用繁体中文、自然口语回应（1-2句），像真实家长，不要像客服或机器人。\n2. 仔细听 CC 说的每一句，针对他「刚说的话」给有内容的回应（他自我介绍你就接电话、他说来意你就表露一点态度），不要自顾自念稿。\n3. CC 没完成自我介绍、没说明来意、没取得提问授权前，你保持距离、不主动配合。\n4. 若 CC 话术生硬、抢话或越界，你可直接皱眉拒绝或简短敷衍。\n5. 带一点真实情绪（忙、疑惑、戒备），让对话有起伏。',
+  digging: '你是一位中国台湾海外学员家长，讲繁体中文、口语自然。CC 正在向你了解孩子基本情况。\n规则：\n1. 用繁体中文、简短口语（1-2句）回应，像真实家长聊天，不要像填表。\n2. 只回答 CC 当下问到的，他没问的你先不主动说；他问到才自然带出对应信息。\n3. 孩子信息：暖暖，女，6岁10个月，一年级，性格外向，有上美术课，数感一般（50以内加减还不会），希望她对数学有兴趣、上国小跟得上。\n4. 针对 CC 的问题给有温度的回应（例如他问喜好你就说「她爱画画」），不要只丢关键词。\n5. 偶尔反问或流露一点顾虑，让对话真实。',
+  objection: '你是一位中国台湾海外学员家长，讲繁体中文。CC 打电话来你想拒绝。\n规则：\n1. 用繁体中文、简短口语回应，带真实情绪。\n2. 起初明确拒绝或敷衍（忙/没空/已报别的班），若 CC 真正理解你的顾虑、点出价值再柔和引导，你才逐步软化。\n3. 针对 CC 刚说的话回应——他若只顾推销你就更抗拒，他若先共情你就松动。\n4. 不主动约时间，等 CC 引导到具体时段你才答应。',
+  confirm: '你是一位中国台湾海外学员家长，讲繁体中文，已认可试听。\n规则：\n1. 简短口语回应 CC 的确认事项（时段、设备、加 Line、预防针、结束语），像真实家长确认，不要机械复读。\n2. 配合确认，但会顺口提一句自己的小顾虑或安排（例如「那天我得先送她去画画」），让对话真实。\n3. 针对 CC 说的每一点给对应回应。',
+  reject: '你是一位中国台湾海外学员家长，讲繁体中文。开场阶段你直接拒绝（已报其他班或没时间）。\n规则：\n1. 起初明确拒绝，带真实理由；若 CC 用「先理解你的处境→点出价值→再引导试听」化解，你逐步软化并答应。\n2. 简短口语，针对 CC 的话回应。\n3. 等 CC 引导到具体时段你才答应。',
+  final: '你是一位中国台湾海外学员家长，讲繁体中文。CC 对你孩子（暖暖）一无所知，通过提问从你这获取信息。\n规则：\n1. 只在 CC 问到时才透露对应信息，不主动全说。\n2. 信息：暖暖，女，6岁10个月，一年级，外向，有上美术课，数感一般（50内加减不会），希望对数学有兴趣、上国小跟得上，试听约 S4-魔法水源 3人小班。\n3. 简短口语（1-2句），针对 CC 的提问给有温度的回应。'
 };
 
 /* —— 调用智谱（Authorization 不带 Bearer） —— */
@@ -837,7 +837,7 @@ async function callZhipu(messages){
   return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
 }
 
-/* —— 解析 LLM 评分 JSON {score, covered[], feedback} —— */
+/* —— 解析 LLM 评分 JSON {score, strengths[], improvements[], feedback, nextTip} —— */
 function parseScoreJSON(text, dims){
   try{
     const m = (text||'').match(/\{[\s\S]*\}/);
@@ -846,7 +846,10 @@ function parseScoreJSON(text, dims){
       let score = Math.max(0, Math.min(100, parseInt(o.score,10)||0));
       const covered = Array.isArray(o.covered) ? o.covered : [];
       const feedback = o.feedback || '';
-      return { score: score, covered: covered, feedback: feedback };
+      const strengths = Array.isArray(o.strengths) ? o.strengths.map(function(x){return (x||'').toString().trim();}).filter(Boolean) : [];
+      const improvements = Array.isArray(o.improvements) ? o.improvements.map(function(x){return (x||'').toString().trim();}).filter(Boolean) : [];
+      const nextTip = (o.nextTip || o.tip || '');
+      return { score: score, covered: covered, feedback: feedback, strengths: strengths, improvements: improvements, nextTip: nextTip };
     }
   }catch(e){}
   return null;
@@ -1037,7 +1040,6 @@ function scoreByKeywords(text, dims){
 
 function renderDialogueHTML(containerId, nodeKey){
   const node = dialogueNodes[nodeKey];
-  const dimTags = (node.expectedKeywords||[]).map(function(d){ return '<span class="topic-tag">'+d.concept+'</span>'; }).join(' ');
   const modeBadge = '🤖 AI 对练模式';
   return `
     <div class="dialogue-container" id="dc-${nodeKey}">
@@ -1047,8 +1049,7 @@ function renderDialogueHTML(containerId, nodeKey){
         <span data-mode-badge style="margin-left:auto;font-size:12px;padding:3px 10px;border-radius:20px;background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;">${modeBadge}</span>
       </div>
       <div class="dialogue-scenario"><strong>📋 场景：</strong>${node.scenario}</div>
-      <div style="margin:10px 0 6px;font-size:12px;color:var(--text-secondary);">评分维度（系统自动评分）：</div>
-      <div style="margin-bottom:12px;">${dimTags}</div>
+      <div style="margin:10px 0 12px;font-size:12px;color:var(--text-secondary);line-height:1.6;">🤖 家长会根据你<strong>每句回复</strong>即时反应；完成对练后，AI 会针对你的<strong>实际话术内容</strong>给出评分、亮点与改进建议（非机械关键词匹配）。</div>
       <div class="dialogue-messages" id="dm-${nodeKey}" style="min-height:120px;margin-bottom:12px;"></div>
       <div id="turn-area-${nodeKey}">
         <textarea class="reply-input" id="ti-${nodeKey}" placeholder="请输入你的回应（Ctrl+Enter 发送）" onkeydown="if(event.ctrlKey&&event.key==='Enter') sendTurn('${nodeKey}')"></textarea>
@@ -1070,23 +1071,30 @@ function renderNodeFeedback(nodeKey, result){
   const panel = document.getElementById('fp-'+nodeKey);
   if(!panel) return;
   const passed = (result.score||0) >= 60;
-  const dimHtml = (result.dims||[]).map(function(d){
-    const hit = (result.hitConcepts||[]).indexOf(d.concept) >= 0;
-    return '<span class="topic-tag '+(hit?'covered':'')+'" style="margin:3px;">'+d.concept+' '+(hit?'✓':'✗')+'</span>';
-  }).join(' ');
-  const modeNote = isAIMode()
-    ? '本节点由 <strong>AI（智谱 glm-4.7-flash）智能对练与评分</strong>，已自动生成点评。'
-    : '本节点由系统<strong>本地自动评分</strong>（按关键词命中），全程在本地完成。';
-  const fb = (result.aiFeedback && result.aiFeedback.trim()) ? '<div class="highlight-box" style="margin-top:10px;background:#eff6ff;border-color:#bfdbfe;"><p><strong>💡 AI 点评：</strong>'+escapeHtml(result.aiFeedback)+'</p></div>' : '';
+  const fb = (result.feedback && result.feedback.trim()) ? result.feedback.trim() : (result.aiFeedback && result.aiFeedback.trim() ? result.aiFeedback.trim() : '');
+  const strengths = Array.isArray(result.strengths) ? result.strengths : [];
+  const improvements = Array.isArray(result.improvements) ? result.improvements : [];
+  const nextTip = result.nextTip || '';
+  const listHtml = function(arr, icon){
+    if(!arr.length) return '<p style="color:#94a3b8;margin:4px 0 0;">—</p>';
+    return '<ul style="margin:6px 0 0 18px;padding:0;">' + arr.map(function(x){
+      return '<li style="margin:4px 0;line-height:1.6;">' + icon + ' ' + escapeHtml(x) + '</li>';
+    }).join('') + '</ul>';
+  };
+  const modeNote = result.offline
+    ? '本节点由系统<strong>本地自动评分</strong>（按关键词命中）兜底，全程在本地完成。'
+    : '本节点由 <strong>AI（智谱 glm-4.7-flash）按你的实际话术内容智能评分</strong>，已自动生成点评与改进建议。';
   panel.innerHTML = `
     <div class="score-display"><div class="score-circle ${passed?'medium':'low'}">${result.score}</div></div>
     <p style="text-align:center;font-weight:700;">${passed?'✅ 通过':'❌ 未通过（需≥60分）'}</p>
-    <div style="margin-top:8px;font-size:13px;color:var(--text-secondary);">维度覆盖情况：</div>
-    <div style="margin:8px 0;">${dimHtml}</div>
-    ${fb}
+    ${fb ? '<div class="highlight-box" style="margin-top:10px;background:#eff6ff;border-color:#bfdbfe;"><p><strong>💡 AI 总评：</strong>'+escapeHtml(fb)+'</p></div>' : ''}
+    <div style="margin-top:14px;font-size:13px;color:var(--text-secondary);font-weight:600;">✅ 亮点（结合你刚说的话）</div>
+    ${listHtml(strengths,'🌟')}
+    <div style="margin-top:12px;font-size:13px;color:var(--text-secondary);font-weight:600;">🔧 待提升</div>
+    ${listHtml(improvements,'🔧')}
+    ${nextTip ? '<div class="highlight-box" style="margin-top:12px;background:#f0fdf4;border-color:#bbf7d0;"><p><strong>🎯 下次实战建议：</strong>'+escapeHtml(nextTip)+'</p></div>' : ''}
     <div class="highlight-box ${passed?'success':'warning'}" style="margin-top:12px;">
       <p>${modeNote}</p>
-      <p style="margin-top:6px;">已体现维度：${(result.hitConcepts||[]).join('、')||'—'}</p>
     </div>`;
   panel.classList.add('show');
 }
@@ -1124,14 +1132,25 @@ function finishNode(nodeKey){
   if(isAIMode()){
     setTyping(nodeKey, true);
     const hist = (st.aiHistory||[]).slice();
-    const dimNames = (node.expectedKeywords||[]).map(function(d){ return d.concept; }).join('、');
-    hist.push({ role:'user', content: '作为资深CC培训师，对刚才这段电话话术对练评分。只输出JSON：{"score":0到100整数, "covered":["已体现维度名"], "feedback":"30字内中文点评"}。评分维度：' + dimNames + '。按维度体现给分，总分0-100。' });
+    const title = node.title || nodeKey;
+    hist.push({ role:'user', content:
+      '你是资深CC电话销售培训师。请对刚才这段「' + title + '」话术对练，针对学员(CC)的「实际话术内容」而非关键词，进行专业评分与点评。\n'
+      + '评分重点：①自然度与口语感（像真人聊天而非背稿）；②是否覆盖关键沟通要点与流程规范；③是否有效推进或化解了家长的反应。\n'
+      + '只输出JSON，不要其它文字：\n'
+      + '{\n'
+      + '  "score": 0到100的整数,\n'
+      + '  "strengths": ["学员做得好的1-3个具体点，要结合他刚说的话举例"],\n'
+      + '  "improvements": ["可提升的1-3个具体点"],\n'
+      + '  "feedback": "40字内中文总评",\n'
+      + '  "nextTip": "给学员一句下次实战可执行的小建议"\n'
+      + '}'
+    });
     callZhipu(hist).then(function(reply){
       const r = parseScoreJSON(reply);
       setTyping(nodeKey, false);
       if(r && r.score>0){
         st.score = r.score; st.done = true; st.submitted = true;
-        renderNodeFeedback(nodeKey, { score:r.score, dims:node.expectedKeywords, hitConcepts:r.covered, aiFeedback:r.feedback });
+        renderNodeFeedback(nodeKey, { score:r.score, feedback:r.feedback, strengths:r.strengths, improvements:r.improvements, nextTip:r.nextTip, covered:r.covered });
         updateSidebarLocks(); saveProgress(); checkCertificate();
       } else {
         scoreOfflineNode(nodeKey);
@@ -1162,7 +1181,7 @@ function scoreOfflineNode(nodeKey){
   const allText = st.ccTexts.join('\n');
   const result = scoreByKeywords(allText, node.expectedKeywords||[]);
   st.score = result.score; st.done = true; st.submitted = true;
-  renderNodeFeedback(nodeKey, result);
+  renderNodeFeedback(nodeKey, Object.assign({}, result, { offline:true }));
   updateSidebarLocks(); saveProgress(); checkCertificate();
 }
 
