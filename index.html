@@ -802,14 +802,14 @@ function toggleSidebar() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-/* ===== 对练引擎：AI 对练（智谱 glm-4.7-flash，Key 已内置默认启用）+ 本地练习（调用失败时自动降级） ===== */
+/* ===== 对练引擎：AI 对练（小米 MiMo mimo-v2.5-pro，Key 已内置默认启用）+ 本地练习（调用失败时自动降级） ===== */
 
-/* —— 智谱 API 配置与 Key 管理（Key 已内置，无需手动填写） —— */
-const ZHIPU_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const ZHIPU_MODEL = 'glm-4.7-flash';
-const ZHIPU_API_KEY = 'd68ee7aa5c104c059b01065b2f42380f.yyr2WSVQfRp3TO9o';
-const LS_KEY = 'vipthink_cc_preclass_zhipukey';
-function getApiKey(){ try { return localStorage.getItem(LS_KEY) || ZHIPU_API_KEY; } catch(e){ return ZHIPU_API_KEY; } }
+/* —— AI 对练接口配置（小米 MiMo，OpenAI 兼容；Key 已内置，无需手动填写） —— */
+const API_URL = 'https://api.xiaomimimo.com/v1/chat/completions';
+const API_MODEL = 'mimo-v2.5-pro';
+const API_KEY = 'sk-cn9ni5uat8o56kiskstrnshz4ajt7ogig2ixek5syahpihol';
+const LS_KEY = 'vipthink_cc_preclass_aikey';
+function getApiKey(){ try { return localStorage.getItem(LS_KEY) || API_KEY; } catch(e){ return API_KEY; } }
 function setApiKey(k){ try { k ? localStorage.setItem(LS_KEY, (k||'').trim()) : localStorage.removeItem(LS_KEY); } catch(e){} }
 function isAIMode(){ return true; }
 
@@ -823,14 +823,23 @@ const NODE_SYSTEM = {
   final: '你是一位中国台湾海外学员家长，讲繁体中文。CC 对你孩子（暖暖）一无所知，通过提问从你这获取信息。\n规则：\n1. 只在 CC 问到时才透露对应信息，不主动全说。\n2. 信息：暖暖，女，6岁10个月，一年级，外向，有上美术课，数感一般（50内加减不会），希望对数学有兴趣、上国小跟得上，试听约 S4-魔法水源 3人小班。\n3. 简短口语（1-2句），针对 CC 的提问给有温度的回应。'
 };
 
-/* —— 调用智谱（Authorization 不带 Bearer） —— */
+/* —— 调用 AI（OpenAI 兼容：小米 MiMo，Authorization 需带 Bearer） —— */
 async function callZhipu(messages){
   const key = getApiKey();
-  if(!key) throw new Error('未填写 API Key');
-  const resp = await fetch(ZHIPU_URL, {
+  if(!key) throw new Error('未配置 API Key');
+  const resp = await fetch(API_URL, {
     method:'POST',
-    headers:{ 'Content-Type':'application/json', 'Authorization': key },
-    body: JSON.stringify({ model: ZHIPU_MODEL, messages: messages, max_tokens: 800, temperature: 0.85 })
+    headers:{ 'Content-Type':'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({
+      model: API_MODEL,
+      messages: messages,
+      max_completion_tokens: 1024,
+      temperature: 1.0,
+      top_p: 0.95,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      stop: null
+    })
   });
   if(!resp.ok){ const t = await resp.text(); throw new Error('API '+resp.status+': '+t.slice(0,160)); }
   const data = await resp.json();
@@ -1083,7 +1092,7 @@ function renderNodeFeedback(nodeKey, result){
   };
   const modeNote = result.offline
     ? '本节点由系统<strong>本地自动评分</strong>（按关键词命中）兜底，全程在本地完成。'
-    : '本节点由 <strong>AI（智谱 glm-4.7-flash）按你的实际话术内容智能评分</strong>，已自动生成点评与改进建议。';
+    : '本节点由 <strong>AI（小米 MiMo mimo-v2.5-pro）按你的实际话术内容智能评分</strong>，已自动生成点评与改进建议。';
   panel.innerHTML = `
     <div class="score-display"><div class="score-circle ${passed?'medium':'low'}">${result.score}</div></div>
     <p style="text-align:center;font-weight:700;">${passed?'✅ 通过':'❌ 未通过（需≥60分）'}</p>
@@ -1250,6 +1259,7 @@ function submitFinalSummary(){
       </div>`;
     finalTaskSubmitted = true;
     finalScore = st.score;
+    if(passed) showCert();
     updateSidebarLocks(); saveProgress(); checkCertificate();
   }
 
@@ -1383,6 +1393,24 @@ checkCertificate = function(){
     _origCheckCertificate();
   }
 };
+
+/* 终极考核通过后直接弹出结业证书（沿用 micro-course-builder 技能的证书弹窗） */
+function showCert(){
+  try {
+    const ov = document.getElementById('certOverlay');
+    if(!ov) return;
+    const nameEl = document.getElementById('certStudentName');
+    const scoreEl = document.getElementById('certScore');
+    const fsEl = document.getElementById('certFinalScore');
+    const dateEl = document.getElementById('certDate');
+    if(nameEl) nameEl.textContent = '请填写姓名';
+    if(scoreEl) scoreEl.textContent = '综合评定：通过';
+    if(fsEl) fsEl.textContent = '终极考核得分：' + (typeof finalScore !== 'undefined' ? finalScore : '—') + ' 分';
+    if(dateEl) dateEl.textContent = new Date().toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric' });
+    ov.style.display = 'flex';
+    showToast('🏆 恭喜完成终极考核！点击领取结业证书', 'success');
+  } catch(e){}
+}
 
 function selectQuizOption(el, optionIndex, quizId){
   if(window[quizId+'Answered']) return;
