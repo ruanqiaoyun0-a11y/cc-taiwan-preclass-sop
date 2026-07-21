@@ -802,15 +802,16 @@ function toggleSidebar() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-/* ===== 对练引擎：AI 对练（智谱 glm-4.7-flash，需填 Key）+ 本地练习（无 Key 自动降级） ===== */
+/* ===== 对练引擎：AI 对练（智谱 glm-4.7-flash，Key 已内置默认启用）+ 本地练习（调用失败时自动降级） ===== */
 
-/* —— 智谱 API 配置与 Key 管理 —— */
+/* —— 智谱 API 配置与 Key 管理（Key 已内置，无需手动填写） —— */
 const ZHIPU_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const ZHIPU_MODEL = 'glm-4.7-flash';
+const ZHIPU_API_KEY = 'd68ee7aa5c104c059b01065b2f42380f.yyr2WSVQfRp3TO9o';
 const LS_KEY = 'vipthink_cc_preclass_zhipukey';
-function getApiKey(){ try { return localStorage.getItem(LS_KEY) || ''; } catch(e){ return ''; } }
+function getApiKey(){ try { return localStorage.getItem(LS_KEY) || ZHIPU_API_KEY; } catch(e){ return ZHIPU_API_KEY; } }
 function setApiKey(k){ try { k ? localStorage.setItem(LS_KEY, (k||'').trim()) : localStorage.removeItem(LS_KEY); } catch(e){} }
-function isAIMode(){ return getApiKey().length > 10; }
+function isAIMode(){ return true; }
 
 /* —— 家长角色设定（AI 模式用，繁体中文口语化） —— */
 const NODE_SYSTEM = {
@@ -868,42 +869,10 @@ function setTyping(nodeKey, on){
   } else if(el){ el.remove(); }
 }
 
-/* —— API 设置面板（悬浮按钮 + modal） —— */
-(function injectSettings(){
-  if(document.getElementById('apiSettingsBtn')) return;
-  const btn = document.createElement('button');
-  btn.id = 'apiSettingsBtn';
-  btn.textContent = '⚙ AI 设置';
-  btn.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:999;background:#4f46e5;color:#fff;border:none;border-radius:24px;padding:10px 16px;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);';
-  btn.onclick = function(){ window.openSettings(); };
-  document.body.appendChild(btn);
-  const modal = document.createElement('div');
-  modal.id = 'apiSettingsModal';
-  modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;';
-  modal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
-    + '<h3 style="margin:0 0 8px;font-size:17px;">🤖 AI 对练设置</h3>'
-    + '<p style="font-size:13px;color:#475569;line-height:1.7;margin:0 0 12px;">填写你的智谱开放平台 API Key（模型 glm-4.7-flash）。填写后话术对练转为 <strong>AI 智能对练</strong>（真人对练 + AI 评分）；未填写时自动使用 <strong>本地练习模式</strong>。Key 仅保存在你本机浏览器，不会上传。</p>'
-    + '<input id="apiKeyInput" type="password" placeholder="粘贴智谱 API Key" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box;" />'
-    + '<p id="apiKeyStatus" style="font-size:12px;margin:8px 0 0;color:#64748b;"></p>'
-    + '<div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">'
-    + '<button onclick="closeSettings()" style="padding:8px 14px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;cursor:pointer;">关闭</button>'
-    + '<button onclick="saveApiKey()" style="padding:8px 14px;border:none;background:#4f46e5;color:#fff;border-radius:8px;cursor:pointer;">保存</button>'
-    + '<button onclick="clearApiKey()" style="padding:8px 14px;border:none;background:#ef4444;color:#fff;border-radius:8px;cursor:pointer;">清除</button>'
-    + '</div></div>';
-  document.body.appendChild(modal);
-  function refresh(){
-    const status = document.getElementById('apiKeyStatus');
-    if(isAIMode()){ status.style.color='#059669'; status.textContent='✅ 已启用 AI 对练模式'; }
-    else { status.style.color='#64748b'; status.textContent='当前：本地练习模式（未填写 Key）'; }
-  }
-  window.openSettings = function(){ modal.style.display='flex'; document.getElementById('apiKeyInput').value=getApiKey(); refresh(); };
-  window.closeSettings = function(){ modal.style.display='none'; };
-  window.saveApiKey = function(){ const v=document.getElementById('apiKeyInput').value.trim(); if(!v){ showToast('请粘贴 Key','warning'); return; } setApiKey(v); showToast('已保存，AI 对练已启用','success'); modal.style.display='none'; if(window.updateAllModeBadges) window.updateAllModeBadges(); };
-  window.clearApiKey = function(){ setApiKey(''); showToast('已清除，恢复本地练习模式','info'); modal.style.display='none'; if(window.updateAllModeBadges) window.updateAllModeBadges(); };
-  window.updateAllModeBadges = function(){
-    document.querySelectorAll('[data-mode-badge]').forEach(function(b){ b.textContent = isAIMode() ? '🤖 AI 对练模式' : '📴 本地练习模式'; });
-  };
-})();
+/* —— AI 对练已内置 Key 默认启用，无需手动设置面板 —— */
+window.updateAllModeBadges = function(){
+  document.querySelectorAll('[data-mode-badge]').forEach(function(b){ b.textContent = '🤖 AI 对练模式'; });
+};
 
 const dialogueNodes = {"opening": {"title": "开场白与提问授权", "scenario": "你作为 CC，给一位中国台湾海外学员家长拨打课前首通电话。请依次完成：自我介绍 → 说明来意 → 提问授权。下方家长台词为脚本示例，请按步骤逐轮回应。", "minTurns": 3, "script": ["喂？你好？", "哦，你好。", "可以啊，你说。", "好，那我配合你说。"], "expectedKeywords": [{"concept": "自我介绍", "terms": ["我是", "顾问", "专门", "对接", "我叫", "负责"], "weight": 18}, {"concept": "说明来意", "terms": ["试听", "预约", "安排", "了解", "孩子", "情况", "课程"], "weight": 18}, {"concept": "提问授权", "terms": ["方便", "占用", "几分钟", "打扰", "方便吗", "聊"], "weight": 18}, {"concept": "渠道来源", "terms": ["连结", "渠道", "看到", "透过", "链接", "来源"], "weight": 18}, {"concept": "亲和信任", "terms": ["您", "妈妈", "家长", "您好", "放心", "专门负责", "安全"], "weight": 18}]}, "digging": {"title": "挖需综合演练", "scenario": "家长已同意你提问。请通过对话挖掘：基本信息（姓名、年龄、年级、性格）、学习经历（兴趣班）、学习动机（期待）。下方家长按脚本逐句回答，请逐轮提问。", "minTurns": 5, "script": ["喂，老师你好？", "她叫暖暖。", "6 岁 10 个月，一年级。", "性格还蛮外向的。", "有在上美术课。", "数感一般，50 以内的加减法她还不太会。", "希望她对数学有点兴趣，上国小能跟得上。"], "expectedKeywords": [{"concept": "姓名", "terms": ["叫", "名字", "姓名", "暖暖"], "weight": 15}, {"concept": "年龄年级", "terms": ["几岁", "年龄", "年级", "一年级", "多大", "10个月"], "weight": 15}, {"concept": "性格", "terms": ["性格", "外向", "内向", "活泼"], "weight": 15}, {"concept": "学习经历", "terms": ["兴趣班", "美术", "在校", "补习", "上过", "学校"], "weight": 15}, {"concept": "数学基础", "terms": ["数感", "加减法", "数学", "计算", "基础"], "weight": 15}, {"concept": "学习动机", "terms": ["期待", "希望", "目标", "想", "动机", "痛点", "跟得上"], "weight": 15}]}, "objection": {"title": "异议处理", "scenario": "家长接到电话后表现出拒绝态度。请运用异议处理三步法（理解 → 价值 → 引导）化解拒绝。下方家长台词为脚本示例，请逐轮应对。", "minTurns": 3, "script": ["哎，你好，有什么事吗？", "嗯…你说的也有道理。", "那…也可以试试。", "好吧，明天晚上 7:20 可以。"], "expectedKeywords": [{"concept": "理解共情", "terms": ["理解", "特别能理解", "懂", "明白", "知道您", "正常", "没关系", "也是"], "weight": 30}, {"concept": "价值塑造", "terms": ["免费", "测评", "老师", "专业", "40分钟", "高效", "线上", "体验", "试听"], "weight": 30}, {"concept": "时间引导", "terms": ["时间", "方便", "几点", "明天", "晚上", "约", "安排", "7:20", "8:10"], "weight": 30}]}, "confirm": {"title": "确认时间·设备·加 Line", "scenario": "家长已认可试听价值。请完成：给出具体时段选择、确认上课设备、加 Line、打预防针、结束语。下方家长台词为脚本示例，请逐轮回应。", "minTurns": 4, "script": ["喂，老师，上次说的试听课什么时候呀？", "那 7:20 吧。", "我用平板好了。", "好，那怎么加 Line？", "好，辛苦老师了，拜拜。"], "expectedKeywords": [{"concept": "确认时段", "terms": ["7:20", "8:10", "时间", "几点", "时段", "方便", "哪个", "安排"], "weight": 18}, {"concept": "确认设备", "terms": ["平板", "笔电", "手机", "设备", "屏幕", "大屏"], "weight": 18}, {"concept": "加Line", "terms": ["line", "加", "连结", "微信", "联系", "方式"], "weight": 18}, {"concept": "打预防针", "terms": ["40分钟", "时长", "下载", "提前", "准备", "安静", "预期", "预约", "环境"], "weight": 18}, {"concept": "结束语试探", "terms": ["拜拜", "再见", "随时", "后面", "意向", "试了看", "问", "效果"], "weight": 18}]}, "reject": {"title": "面对拒绝的开场策略", "scenario": "家长在开场阶段直接拒绝（如「已报其他班」「没时间」）。请运用面对拒绝的开场策略：先理解，再给价值，最后引导具体时间。下方家长台词为脚本示例，请逐轮应对。", "minTurns": 3, "script": ["哎，你好，有什么事？", "我们家小朋友已经报其他班了。", "嗯…你说的也有点道理。", "那…也可以先试试。", "好，那明天晚上 7:20 可以。"], "expectedKeywords": [{"concept": "理解共情", "terms": ["理解", "特别能理解", "懂", "明白", "知道您", "正常", "没关系", "也是", "报其他"], "weight": 30}, {"concept": "价值塑造", "terms": ["免费", "测评", "老师", "专业", "40分钟", "高效", "线上", "体验", "试听", "思维"], "weight": 30}, {"concept": "时间引导", "terms": ["时间", "方便", "几点", "明天", "晚上", "约", "安排", "7:20", "8:10"], "weight": 30}]}};
 let nodeState = {
@@ -1069,7 +1038,7 @@ function scoreByKeywords(text, dims){
 function renderDialogueHTML(containerId, nodeKey){
   const node = dialogueNodes[nodeKey];
   const dimTags = (node.expectedKeywords||[]).map(function(d){ return '<span class="topic-tag">'+d.concept+'</span>'; }).join(' ');
-  const modeBadge = isAIMode() ? '🤖 AI 对练模式' : '📴 本地练习模式';
+  const modeBadge = '🤖 AI 对练模式';
   return `
     <div class="dialogue-container" id="dc-${nodeKey}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
