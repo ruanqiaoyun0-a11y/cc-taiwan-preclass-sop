@@ -1545,21 +1545,40 @@ function selectQuizOption(el, optionIndex, quizId, qIdx){
   const card = document.getElementById('quiz-' + quizId + '_q' + (qIdx||0));
   if(!card) return;
   const options = card.querySelectorAll('.quiz-option');
-  options.forEach(function(o){ o.classList.remove('selected'); });
+  // 清除上次选中与判色，允许答错后重新点击作答
+  options.forEach(function(o){
+    o.classList.remove('selected');
+    o.classList.remove('correct');
+    o.classList.remove('wrong');
+    o.style.pointerEvents = '';
+  });
   el.classList.add('selected');
   const quiz = quizzes[quizId + '_q' + (qIdx||0)];
   if(!quiz) return;
   const isCorrect = optionIndex === quiz.correct;
-  window[key] = true;
-  window[quizId + '_q' + (qIdx||0) + 'Score'] = isCorrect ? 100 : 0;
-  options.forEach(function(o, i){
-    o.classList.add(i===quiz.correct ? 'correct' : 'wrong');
-    o.style.pointerEvents = 'none';
-  });
   const fb = document.getElementById('feedback-' + quizId + '_q' + (qIdx||0));
-  if(fb){
-    fb.textContent = isCorrect ? quiz.feedback_correct : quiz.feedback_wrong;
-    fb.className = 'quiz-feedback show ' + (isCorrect ? 'correct' : 'wrong');
+  if(isCorrect){
+    // 答对：锁定本题，不再可点
+    window[key] = true;
+    window[quizId + '_q' + (qIdx||0) + 'Score'] = 100;
+    options.forEach(function(o, i){
+      o.classList.add(i===quiz.correct ? 'correct' : 'wrong');
+      o.style.pointerEvents = 'none';
+    });
+    if(fb){
+      fb.textContent = quiz.feedback_correct;
+      fb.className = 'quiz-feedback show correct';
+    }
+  } else {
+    // 答错：不锁定，保留可点击，提示错误与重试
+    window[quizId + '_q' + (qIdx||0) + 'Score'] = 0;
+    options.forEach(function(o){
+      o.style.pointerEvents = '';
+    });
+    if(fb){
+      fb.textContent = quiz.feedback_wrong + ' 请再试一次。';
+      fb.className = 'quiz-feedback show wrong';
+    }
   }
   saveProgress();
   updateSidebarLocks();
