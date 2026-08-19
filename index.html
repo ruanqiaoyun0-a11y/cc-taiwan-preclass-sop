@@ -1189,9 +1189,13 @@ function renderNodeFeedback(nodeKey, result){
   const modeNote = result.offline
     ? '本节点由系统<strong>本地自动评分</strong>（按关键词命中）兜底，全程在本地完成。'
     : '本节点由 <strong>AI（小米 MiMo mimo-v2.5-pro）按你的实际话术内容智能评分</strong>，已自动生成点评与改进建议。';
+  const retryNote = passed
+    ? ''
+    : '<div class="highlight-box warning" style="margin-top:12px;"><p><strong>🔄 未达标提示：</strong>你可以根据上面的建议，在输入框<strong>继续向家长补充话术</strong>，补充完成后再次点击「完成对练并评分」重新提交，直到通过。</p></div>';
   panel.innerHTML = `
     <div class="score-display"><div class="score-circle ${passed?'medium':'low'}">${result.score}</div></div>
     <p style="text-align:center;font-weight:700;">${passed?'✅ 通过':'❌ 未通过（需≥60分）'}</p>
+    ${retryNote}
     ${fb ? '<div class="highlight-box" style="margin-top:10px;background:#eff6ff;border-color:#bfdbfe;"><p><strong>💡 AI 总评：</strong>'+escapeHtml(fb)+'</p></div>' : ''}
     <div style="margin-top:14px;font-size:13px;color:var(--text-secondary);font-weight:600;">✅ 亮点（结合你刚说的话）</div>
     ${listHtml(strengths,'🌟')}
@@ -1262,9 +1266,12 @@ function finishNode(nodeKey){
       const r = parseScoreJSON(reply);
       setTyping(nodeKey, false);
       if(r && r.score>0){
-        st.score = r.score; st.done = true; st.submitted = true;
-        renderNodeFeedback(nodeKey, { score:r.score, feedback:r.feedback, strengths:r.strengths, improvements:r.improvements, nextTip:r.nextTip });
+        st.score = r.score;
+        const passed = r.score >= 60;
+        st.done = passed; st.submitted = passed;
+        renderNodeFeedback(nodeKey, { score:r.score, feedback:r.feedback, strengths:r.strengths, improvements:r.improvements, nextTip:r.nextTip, passed:passed });
         updateSidebarLocks(); saveProgress(); checkCertificate();
+        if(!passed) showToast('未达标（<60分），可继续补充话术后再次评分', 'warning');
       } else {
         scoreOfflineNode(nodeKey);
       }
@@ -1293,9 +1300,12 @@ function scoreOfflineNode(nodeKey){
   const node = dialogueNodes[nodeKey];
   const allText = st.ccTexts.join('\n');
   const result = scoreByKeywords(allText, node.expectedKeywords||[]);
-  st.score = result.score; st.done = true; st.submitted = true;
-  renderNodeFeedback(nodeKey, Object.assign({}, result, { offline:true }));
+  st.score = result.score;
+  const passed = result.score >= 60;
+  st.done = passed; st.submitted = passed;
+  renderNodeFeedback(nodeKey, Object.assign({}, result, { offline:true, passed:passed }));
   updateSidebarLocks(); saveProgress(); checkCertificate();
+  if(!passed && nodeKey!=='final') showToast('未达标（<60分），可继续补充话术后再次评分', 'warning');
 }
 
 function renderFinalDialogueFeedback(nodeKey, result, facts, cov, hitCount){
@@ -1318,12 +1328,13 @@ function showSummaryPanel(){
   const panel = document.getElementById('finalSummaryPanel');
   if(!panel) return;
   panel.style.display = 'block';
+  const prev = (nodeState.final && nodeState.final.summary) ? nodeState.final.summary : '';
   panel.innerHTML = `
     <div class="card" style="margin-top:20px;">
       <div class="card-title">📝 书面总结（占终极考核 30%）</div>
       <p>请基于刚才获取的信息，撰写一段总结与课程 / 试听安排建议：</p>
-      <textarea class="final-task-input" id="finalSummaryInput" placeholder="例如：暖暖，女，6 岁 10 个月，一年级，性格外向，有美术兴趣班，数感一般（50 以内加减还不会）。建议安排 S3/S4 阶段中文试听课，时间定在……"></textarea>
-      <div class="char-counter" id="finalSummaryCount">0 / 500字</div>
+      <textarea class="final-task-input" id="finalSummaryInput" placeholder="例如：暖暖，女，6 岁 10 个月，一年级，性格外向，有美术兴趣班，数感一般（50 以内加减还不会）。建议安排 S3/S4 阶段中文试听课，时间定在……">${prev}</textarea>
+      <div class="char-counter" id="finalSummaryCount">${prev.length} / 500字</div>
       <div style="display:flex;gap:12px;margin-top:16px;">
         <button class="btn" id="finalSummarySubmit" onclick="submitFinalSummary()">提交总结</button>
       </div>
@@ -1348,20 +1359,25 @@ function submitFinalSummary(){
   function commit(summaryScore, fb){
     st.summaryScore = summaryScore;
     st.score = Math.round(st.dialogueScore*0.5 + st.factCoverage*0.2 + st.summaryScore*0.3);
-    st.submitted = true;
-    const fpanel = document.getElementById('finalSummaryFeedback');
     const passed = st.score >= 80;
+    // 通过才锁定；未通过保持可再次提交/再次评分
+    st.submitted = passed;
+    const fpanel = document.getElementById('finalSummaryFeedback');
     const fbHtml = (fb && fb.trim()) ? '<div class="highlight-box" style="margin-top:10px;background:#eff6ff;border-color:#bfdbfe;"><p><strong>💡 AI 总结点评：</strong>'+escapeHtml(fb)+'</p></div>' : '';
+    const retryNote = passed
+      ? ''
+      : '<div class="highlight-box warning" style="margin-top:10px;"><p><strong>🔄 未达标提示：</strong>你可以修改上面的总结后<strong>再次点击「提交总结」</strong>重新评分；也可以回到对话区继续补充话术，再点「完成对练并评分」重算对话表现分。</p></div>';
     fpanel.innerHTML = `
       <div class="score-display"><div class="score-circle ${passed?'medium':'low'}">${st.score}</div></div>
-      <p style="text-align:center;font-weight:700;">${passed?'✅ 终极考核通过（≥80分）':'❌ 未通过，建议重考（需≥80分）'}</p>
+      <p style="text-align:center;font-weight:700;">${passed?'✅ 终极考核通过（≥80分）':'❌ 未通过（需≥80分）'}</p>
+      ${retryNote}
       ${fbHtml}
       <div class="eval-dimensions" style="margin-top:16px;">
         <div class="eval-dim"><h4>对话表现·流程规范（50%）</h4><p>${st.dialogueScore}分</p></div>
         <div class="eval-dim"><h4>信息覆盖·知识点（20%）</h4><p>${st.factCoverage}分</p></div>
         <div class="eval-dim"><h4>总结（30%）</h4><p>${st.summaryScore}分</p></div>
       </div>`;
-    finalTaskSubmitted = true;
+    finalTaskSubmitted = passed;
     finalScore = st.score;
     if(passed) showCert();
     updateSidebarLocks(); saveProgress(); checkCertificate();
